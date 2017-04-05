@@ -117,10 +117,7 @@ public class Robot
 			response.append(inputLine);
 		}
 
-		System.out.println("Response code: "+con.getResponseCode());
-
 		in.close();
-
 		System.out.println("Post response: " + response.toString());
 	}
 }
