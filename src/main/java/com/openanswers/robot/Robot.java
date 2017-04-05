@@ -4,8 +4,10 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.CookieHandler;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -23,101 +25,130 @@ import com.openanswers.rules.RobotRules;
  */
 public class Robot
 {
-	private static final String USER_AGENT = "Mozilla/5.0";
+    private static final String USER_AGENT = "Mozilla/5.0";
 
-	private final URL url;
+    private final URL url;
 
-	public Robot(final String url) throws MalformedURLException
-	{
-		this.url = new URL(url);
-	}
+    private HttpsURLConnection connectionPOST;
 
-	/**
-	 * Execute the HTTP GET request to the specific URL where retrieve
-	 * As String format the values and operators that is necessary to execute.
-	 *
-	 * There is some staffs as extract the string to execute the operation and
-	 * have a result.
-	 *
-	 * @return final value of the all operation
-	 * @throws IOException
-	 */
-	public long getFinalValueUsingMethodGet() throws IOException
-	{
-		final HttpURLConnection con = (HttpURLConnection) this.url.openConnection();
+    private HttpURLConnection connectionGET;
 
-		con.setRequestMethod("GET");
+    private String headerField;
 
-		con.setRequestProperty("User-Agent", Robot.USER_AGENT);
+    public Robot(final String url) throws IOException
+    {
+        CookieHandler.setDefault(new CookieManager(null, CookiePolicy.ACCEPT_ALL));
 
-		final BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
-		String inputLine;
-		final StringBuffer response = new StringBuffer();
+        this.url = new URL(url);
+        this.prepareConnectionGET();
+        this.prepareConnectionPost();
+    }
 
-		while ((inputLine = in.readLine()) != null)
-		{
-			response.append(inputLine);
-		}
+    private void prepareConnectionGET() throws IOException
+    {
+        this.connectionGET = (HttpURLConnection) this.url.openConnection();
+        this.connectionGET.setRequestMethod("GET");
+        this.connectionGET.setRequestProperty("User-Agent", Robot.USER_AGENT);
+    }
 
-		final String responseExtracted = this.extractResponse(response.toString());
+    private void prepareConnectionPost() throws IOException
+    {
+        this.connectionPOST = (HttpsURLConnection) this.url.openConnection();
+        this.connectionPOST.setRequestMethod("POST");
+        this.connectionPOST.setRequestProperty("User-Agent", Robot.USER_AGENT);
+        this.connectionPOST.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
+        this.connectionPOST.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        this.connectionPOST.setDoOutput(true);
+    }
 
-		final String[] responseSplitted = responseExtracted.split(" ");
+    /**
+     * Execute the HTTP GET request to the specific URL where retrieve
+     * As String format the values and operators that is necessary to execute.
+     *
+     * There is some staffs as extract the string to execute the operation and
+     * have a result.
+     *
+     * @return final value of the all operation
+     * @throws IOException
+     */
+    public long getFinalValueUsingMethodGet() throws IOException
+    {
+        final BufferedReader in = new BufferedReader(new InputStreamReader(this.connectionGET.getInputStream()));
 
-		final long finalValue = RobotRules.getFinalValue(responseSplitted);
+        String inputLine;
+        final StringBuffer response = new StringBuffer();
 
-		System.out.println("FinalValue: " + finalValue);
+        while ((inputLine = in.readLine()) != null)
+        {
+            response.append(inputLine);
+        }
 
-		in.close();
+        final String responseExtracted = this.extractResponse(response.toString());
 
-		return finalValue;
-	}
+        this.headerField = this.connectionGET.getHeaderField("Set-Cookie");
 
-	/**
-	 * Extract the {@value response} to have a better string to split it in the future
-	 * to make some operations using "+", "-" or "*".
-	 *
-	 * @param response
-	 * @return extracted response
-	 */
-	public String extractResponse(final String response)
-	{
-		return response.substring(response.indexOf("<form method=\"post\" action=\"\">") + 33, response.indexOf("= <input")).trim();
-	}
+        System.out.println(response.toString());
+        System.out.println("Operation to be executed [" + responseExtracted + "]");
 
-	/**
-	 * Execute the HTTP POST sending the data as {@value finalValue} to the URL specified.
-	 * Is write the {@value finalValue} in the body of request and processed as a form
-	 * (it's like a submit button).
-	 *
-	 * @param finalValue
-	 * @throws IOException
-	 */
-	public void sendPost(final long finalValue) throws IOException
-	{
-		final HttpsURLConnection con = (HttpsURLConnection) this.url.openConnection();
+        final String[] responseSplitted = responseExtracted.split(" ");
 
-		con.setRequestMethod("POST");
-		con.setRequestProperty("User-Agent", Robot.USER_AGENT);
-		con.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
-		con.setDoOutput(true);
+        final long finalValue = RobotRules.getFinalValue(responseSplitted);
 
-		final String urlParameters = "answer=" + finalValue;
+        System.out.println("FinalValue: " + finalValue);
 
-		final DataOutputStream wr = new DataOutputStream(con.getOutputStream());
-		wr.writeBytes(urlParameters);
-		wr.flush();
-		wr.close();
+        //        in.close();
 
-		final BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
-		String inputLine;
-		final StringBuffer response = new StringBuffer();
+        return finalValue;
+    }
 
-		while ((inputLine = in.readLine()) != null)
-		{
-			response.append(inputLine);
-		}
+    /**
+     * Extract the {@value response} to have a better string to split it in the future
+     * to make some operations using "+", "-" or "*".
+     *
+     * @param response
+     * @return extracted response
+     */
+    public String extractResponse(final String response)
+    {
+        return response.substring(response.indexOf("<form method=\"post\" action=\"\">") + 33, response.indexOf("= <input")).trim();
+    }
 
-		in.close();
-		System.out.println("Post response: " + response.toString());
-	}
+    /**
+     * Execute the HTTP POST sending the data as {@value finalValue} to the URL specified.
+     * Is write the {@value finalValue} in the body of request and processed as a form
+     * (it's like a submit button).
+     *
+     * @param finalValue
+     * @throws IOException
+     */
+    public void sendPost(final long finalValue) throws IOException
+    {
+        final String urlParameters = String.format("answer=%d&submitbtn=Submit", new Long(finalValue));
+
+        this.connectionPOST.setFixedLengthStreamingMode(urlParameters.getBytes().length);
+        this.connectionPOST.setRequestProperty("Cookie", this.headerField);
+        this.connectionPOST.setRequestProperty("cookies_accept", this.headerField);
+        this.connectionPOST.setRequestProperty("Set-Cookie", this.headerField);
+
+        final DataOutputStream dataOutputStreamPOST = new DataOutputStream(this.connectionPOST.getOutputStream());
+
+        dataOutputStreamPOST.writeBytes(urlParameters);
+        dataOutputStreamPOST.flush();
+        dataOutputStreamPOST.close();
+
+        final BufferedReader in = new BufferedReader(new InputStreamReader(this.connectionPOST.getInputStream()));
+        String inputLine;
+        final StringBuffer response = new StringBuffer();
+
+        while ((inputLine = in.readLine()) != null)
+        {
+            response.append(inputLine);
+        }
+
+        final String responseExtracted = this.extractResponse(response.toString());
+        System.out.println(response.toString());
+        System.out.println("Operation to be executed by POST [" + responseExtracted + "]");
+
+        in.close();
+    }
 }
