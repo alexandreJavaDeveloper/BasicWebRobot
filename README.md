@@ -11,3 +11,6 @@
 - cd BasicWebRobot/
 - mvn clean package
 - At this stage, will be executed all tests that execute the Robot. This uses all structure of the code of this project.
+
+## Dependencies of APIs
+- There is no dependencies, only was used package from "java" and "javax" from Java core.
