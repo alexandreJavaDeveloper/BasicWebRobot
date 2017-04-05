@@ -33,6 +33,8 @@ public class Robot
 
 	private HttpURLConnection connectionGET;
 
+	private DataOutputStream dataOutputStreamPOST;
+
 	public Robot(final String url) throws IOException
 	{
 		// This is used to maintain the session of the first and second request
@@ -44,6 +46,10 @@ public class Robot
 		this.prepareConnectionPost();
 	}
 
+	/**
+	 * Just to gain performance, I start some objects before to sending the GET request.
+	 * @throws IOException
+	 */
 	private void prepareConnectionGET() throws IOException
 	{
 		this.connectionGET = (HttpURLConnection) this.url.openConnection();
@@ -51,6 +57,10 @@ public class Robot
 		this.connectionGET.setRequestProperty("User-Agent", Robot.USER_AGENT);
 	}
 
+	/**
+	 * Just to gain performance, I start some objects before to sending the POST request.
+	 * @throws IOException
+	 */
 	private void prepareConnectionPost() throws IOException
 	{
 		this.connectionPOST = (HttpsURLConnection) this.url.openConnection();
@@ -59,6 +69,8 @@ public class Robot
 		this.connectionPOST.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
 		this.connectionPOST.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 		this.connectionPOST.setDoOutput(true);
+
+		this.dataOutputStreamPOST = new DataOutputStream(this.connectionPOST.getOutputStream());
 	}
 
 	/**
@@ -83,18 +95,13 @@ public class Robot
 			response.append(inputLine);
 		}
 
-		final String responseExtracted = this.extractResponse(response.toString());
+		final String extractedResponseOperation = this.extractOperation(response.toString());
 
-		System.out.println(response.toString());
-		System.out.println("Operation to be executed [" + responseExtracted + "]");
+		System.out.println("Operation from GET: " + extractedResponseOperation);
 
-		final String[] responseSplitted = responseExtracted.split(" ");
+		final String[] responseSplitted = extractedResponseOperation.split(" ");
 
 		final long finalValue = RobotRules.getFinalValue(responseSplitted);
-
-		System.out.println("FinalValue: " + finalValue);
-
-		//        in.close();
 
 		return finalValue;
 	}
@@ -106,9 +113,14 @@ public class Robot
 	 * @param response
 	 * @return extracted response
 	 */
-	public String extractResponse(final String response)
+	public String extractOperation(final String response)
 	{
 		return response.substring(response.indexOf("<form method=\"post\" action=\"\">") + 33, response.indexOf("= <input")).trim();
+	}
+
+	private String extractResult(final String response)
+	{
+		return response.substring(response.indexOf("</form>	</div>") + 18, response.indexOf("</p>	</div></div>") - 5).trim();
 	}
 
 	/**
@@ -123,27 +135,25 @@ public class Robot
 	{
 		final String urlParameters = String.format("answer=%d&submitbtn=Submit", finalValue);
 
-		this.connectionPOST.setFixedLengthStreamingMode(urlParameters.getBytes().length);
+		this.dataOutputStreamPOST.writeBytes(urlParameters);
 
-		final DataOutputStream dataOutputStreamPOST = new DataOutputStream(this.connectionPOST.getOutputStream());
+		final BufferedReader inPOST = new BufferedReader(new InputStreamReader(this.connectionPOST.getInputStream()));
 
-		dataOutputStreamPOST.writeBytes(urlParameters);
-		dataOutputStreamPOST.flush();
-		dataOutputStreamPOST.close();
-
-		final BufferedReader in = new BufferedReader(new InputStreamReader(this.connectionPOST.getInputStream()));
 		String inputLine;
 		final StringBuffer response = new StringBuffer();
 
-		while ((inputLine = in.readLine()) != null)
+		while ((inputLine = inPOST.readLine()) != null)
 		{
 			response.append(inputLine);
 		}
 
-		final String responseExtracted = this.extractResponse(response.toString());
-		System.out.println(response.toString());
-		System.out.println("Operation to be executed by POST [" + responseExtracted + "]");
+		final String extractResult = this.extractResult(response.toString());
 
-		in.close();
+		System.out.println("Extract result: " + extractResult);
+
+		System.out.println("Response: " + response.toString());
+
+		this.dataOutputStreamPOST.close();
+		inPOST.close();
 	}
 }
